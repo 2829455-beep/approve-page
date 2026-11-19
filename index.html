@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Проверка Face ID (А0)</title>
+<style>body{font:16px -apple-system,system-ui,sans-serif;margin:24px;max-width:520px}button{font-size:18px;padding:14px 18px;margin:8px 0;width:100%}pre{background:#f2f2f2;padding:12px;white-space:pre-wrap;word-break:break-all}</style></head>
+<body>
+<h2>Проверка Face ID — А0</h2>
+<p>Пробная страница: проверяет, что на этом устройстве работает ключ доступа (passkey) с Face ID / Touch ID. Ничего не сохраняет и никуда не отправляет.</p>
+<button id="reg">1. Создать ключ</button>
+<button id="get" disabled>2. Подтвердить (Face ID)</button>
+<pre id="out"></pre>
+<script>
+const out = document.getElementById('out');
+const log = (m) => { out.textContent += m + "\n"; };
+const rnd = (n) => crypto.getRandomValues(new Uint8Array(n));
+let credId = null;
+log("Адрес: " + location.hostname);
+log("Браузер: " + navigator.userAgent.slice(0, 110));
+log("WebAuthn: " + (window.PublicKeyCredential ? "есть" : "НЕТ"));
+if (window.PublicKeyCredential && PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable)
+  PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(v => log("Face ID/Touch ID доступны: " + v));
+document.getElementById('reg').onclick = async () => {
+  try {
+    const c = await navigator.credentials.create({ publicKey: {
+      challenge: rnd(32), rp: { id: location.hostname, name: "Подтверждение (проба)" },
+      user: { id: rnd(16), name: "owner", displayName: "Владелец" },
+      pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+      authenticatorSelection: { authenticatorAttachment: "platform", residentKey: "required", userVerification: "required" },
+      timeout: 60000 } });
+    credId = c.rawId; log("Ключ создан, id " + c.rawId.byteLength + " байт. Тип: " + c.type);
+    document.getElementById('get').disabled = false;
+  } catch (e) { log("Создание: ОШИБКА " + e.name + ": " + e.message); }
+};
+document.getElementById('get').onclick = async () => {
+  try {
+    const a = await navigator.credentials.get({ publicKey: {
+      challenge: rnd(32), rpId: location.hostname, userVerification: "required",
+      allowCredentials: [{ type: "public-key", id: credId }], timeout: 60000 } });
+    log("Подпись получена, " + a.response.signature.byteLength + " байт. Face ID прошёл. А0: ОК");
+  } catch (e) { log("Подтверждение: ОШИБКА " + e.name + ": " + e.message); }
+};
+</script></body></html>
