@@ -1,41 +1,85 @@
 <!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Проверка Face ID (А0)</title>
-<style>body{font:16px -apple-system,system-ui,sans-serif;margin:24px;max-width:520px}button{font-size:18px;padding:14px 18px;margin:8px 0;width:100%}pre{background:#f2f2f2;padding:12px;white-space:pre-wrap;word-break:break-all}</style></head>
+<title>Подтверждение Face ID</title>
+<style>
+:root{--ink:#1d1d1f;--mut:#6e6e73;--acc1:#e91e63;--acc2:#ef4136;--line:#ececf0;--bg:#fafafb}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;min-height:100vh;font:16px/1.5 "Open Sans",-apple-system,system-ui,sans-serif;color:var(--ink);
+  background:url(logo.svg) no-repeat right -90px bottom -70px/min(78vw,460px),var(--bg)}
+body::before{content:"";position:fixed;inset:0;background:rgba(250,250,251,.82);pointer-events:none;z-index:0}
+main{position:relative;z-index:1;max-width:520px;margin:0 auto;padding:20px 16px 48px}
+.brand{display:flex;align-items:center;gap:10px;margin:4px 0 18px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:14px;color:#4a4a4a}
+.brand img{height:34px}
+.card{background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:18px;padding:22px 20px;box-shadow:0 8px 30px rgba(30,30,40,.07)}
+h2{margin:0 0 6px;font-size:22px}
+p{margin:8px 0;color:var(--mut)}
+button{display:block;width:100%;margin:14px 0 4px;padding:15px 18px;font:600 17px inherit;font-family:inherit;color:#fff;border:0;border-radius:14px;
+  background:linear-gradient(135deg,var(--acc1),var(--acc2));box-shadow:0 6px 16px rgba(233,65,53,.28);cursor:pointer}
+button:active{transform:translateY(1px)}
+table{width:100%;border-collapse:collapse;margin:12px 0}
+td{border-bottom:1px solid var(--line);padding:9px 4px;vertical-align:top;word-break:break-word}
+td:first-child{color:var(--mut);width:34%}
+pre{background:#f4f4f6;border-radius:10px;padding:12px;white-space:pre-wrap;word-break:break-all;font-size:12.5px;color:#333}
+.bad{color:#c0192b;font-weight:600}
+.foot{margin-top:18px;text-align:center;font-size:12px;color:#9a9aa0}
+</style></head>
 <body>
-<h2>Проверка Face ID — А0</h2>
-<p>Пробная страница: проверяет, что на этом устройстве работает ключ доступа (passkey) с Face ID / Touch ID. Ничего не сохраняет и никуда не отправляет.</p>
-<button id="reg">1. Создать ключ</button>
-<button id="get" disabled>2. Подтвердить (Face ID)</button>
-<pre id="out"></pre>
+<main>
+<div class="brand"><img src="logo.svg" alt="">AppleN1</div>
+<div class="card">
+<h2 id="title">Подтверждение</h2>
+<div id="view"></div>
+</div>
+<div class="foot">Ключ подтверждения остаётся в вашем телефоне</div>
+</main>
+<script src="core.js"></script>
 <script>
-const out = document.getElementById('out');
-const log = (m) => { out.textContent += m + "\n"; };
-const rnd = (n) => crypto.getRandomValues(new Uint8Array(n));
-let credId = null;
-log("Адрес: " + location.hostname);
-log("Браузер: " + navigator.userAgent.slice(0, 110));
-log("WebAuthn: " + (window.PublicKeyCredential ? "есть" : "НЕТ"));
-if (window.PublicKeyCredential && PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable)
-  PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(v => log("Face ID/Touch ID доступны: " + v));
-document.getElementById('reg').onclick = async () => {
-  try {
-    const c = await navigator.credentials.create({ publicKey: {
-      challenge: rnd(32), rp: { id: location.hostname, name: "Подтверждение (проба)" },
-      user: { id: rnd(16), name: "owner", displayName: "Владелец" },
-      pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
-      authenticatorSelection: { authenticatorAttachment: "platform", residentKey: "required", userVerification: "required" },
-      timeout: 60000 } });
-    credId = c.rawId; log("Ключ создан, id " + c.rawId.byteLength + " байт. Тип: " + c.type);
-    document.getElementById('get').disabled = false;
-  } catch (e) { log("Создание: ОШИБКА " + e.name + ": " + e.message); }
-};
-document.getElementById('get').onclick = async () => {
-  try {
-    const a = await navigator.credentials.get({ publicKey: {
-      challenge: rnd(32), rpId: location.hostname, userVerification: "required",
-      allowCredentials: [{ type: "public-key", id: credId }], timeout: 60000 } });
-    log("Подпись получена, " + a.response.signature.byteLength + " байт. Face ID прошёл. А0: ОК");
-  } catch (e) { log("Подтверждение: ОШИБКА " + e.name + ": " + e.message); }
-};
+const F = FaceId, view = document.getElementById("view"), title = document.getElementById("title");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const copyBtn = (id) => `<button onclick="navigator.clipboard.writeText(document.getElementById('${id}').textContent).then(()=>this.textContent='Скопировано')">Скопировать</button>`;
+const hash = location.hash.slice(1);
+
+if (hash === "reg") register(); else if (hash.startsWith("req=")) approve(hash.slice(4)); else
+  view.innerHTML = "<p>Нет запроса. Эту страницу открывают по ссылке из карточки подтверждения.</p>";
+
+async function register() {
+  title.textContent = "Регистрация ключа Face ID";
+  view.innerHTML = '<p>Создаёт ключ на этом устройстве. Секрет ключа остаётся в телефоне; ниже появится только публичная часть.</p><button id="go">Создать ключ</button><div id="res"></div>';
+  document.getElementById("go").onclick = async () => {
+    const res = document.getElementById("res");
+    try {
+      const c = await navigator.credentials.create({ publicKey: {
+        challenge: crypto.getRandomValues(new Uint8Array(32)), rp: { id: location.hostname, name: "Подтверждение" },
+        user: { id: crypto.getRandomValues(new Uint8Array(16)), name: "owner", displayName: "Владелец" },
+        pubKeyCredParams: [{ type: "public-key", alg: -7 }],   // только ES256 — других проверка не знает
+        authenticatorSelection: { residentKey: "required", userVerification: "required" }, timeout: 60000 } });
+      const out = { credential_id: F.b64u(c.rawId), spki: F.b64u(c.response.getPublicKey()),
+                    rp_id: location.hostname, origin: location.origin };
+      res.innerHTML = '<p>Ключ создан. Отправьте этот блок в чат.</p><pre id="o">' + esc(JSON.stringify(out)) + "</pre>" + copyBtn("o");
+    } catch (e) { res.innerHTML = '<p class="bad">Ошибка: ' + esc(e.name + ": " + e.message) + "</p>"; }
+  };
+}
+
+async function approve(payload) {
+  title.textContent = "Подтвердить действие?";
+  let r;
+  try { r = JSON.parse(new TextDecoder().decode(F.unb64u(payload))); } catch (e) { view.innerHTML = '<p class="bad">Запрос нечитаем.</p>'; return; }
+  let ok = false, own;
+  try { own = await F.challenge(r.action, r.nonce, r.expires); ok = F.b64u(own) === r.challenge; } catch (e) {}
+  const rows = Object.keys(r.action || {}).sort().map(k => `<tr><td>${esc(k)}</td><td>${esc(r.action[k])}</td></tr>`).join("");
+  const left = r.expires - Math.floor(Date.now() / 1000);
+  if (!ok) { view.innerHTML = '<p class="bad">Вызов не соответствует тексту действия. Запрос подделан — не подтверждайте.</p>'; return; }
+  if (left <= 0) { view.innerHTML = '<p class="bad">Срок запроса истёк. Запросите заново.</p><table>' + rows + "</table>"; return; }
+  view.innerHTML = "<p>Подписывается ровно это:</p><table>" + rows + "</table><p>Действует ещё " + Math.ceil(left / 60) + ' мин.</p><button id="go">Подтвердить Face ID</button><div id="res"></div>';
+  document.getElementById("go").onclick = async () => {
+    const res = document.getElementById("res");
+    try {
+      const a = await navigator.credentials.get({ publicKey: { challenge: own, rpId: location.hostname, userVerification: "required", timeout: 60000 } });
+      const out = { credential_id: F.b64u(a.rawId), client_data_json: F.b64u(a.response.clientDataJSON),
+                    authenticator_data: F.b64u(a.response.authenticatorData), signature: F.b64u(a.response.signature) };
+      res.innerHTML = '<p>Подтверждено. Отправьте блок в чат.</p><pre id="o">' + esc(JSON.stringify(out)) + "</pre>" + copyBtn("o");
+    } catch (e) { res.innerHTML = '<p class="bad">Отказ: ' + esc(e.name + ": " + e.message) + "</p>"; }
+  };
+}
 </script></body></html>
