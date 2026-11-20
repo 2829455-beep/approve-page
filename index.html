@@ -51,7 +51,7 @@ async function register() {
     try {
       const c = await navigator.credentials.create({ publicKey: {
         challenge: crypto.getRandomValues(new Uint8Array(32)), rp: { id: location.hostname, name: "Подтверждение" },
-        user: { id: crypto.getRandomValues(new Uint8Array(16)), name: "owner", displayName: "Владелец" },
+        user: { id: crypto.getRandomValues(new Uint8Array(16)), name: "AppleN1 " + new Date().toLocaleString("ru-RU"), displayName: "AppleN1 · ключ подтверждения" },
         pubKeyCredParams: [{ type: "public-key", alg: -7 }],   // только ES256 — других проверка не знает
         authenticatorSelection: { residentKey: "required", userVerification: "required" }, timeout: 60000 } });
       const out = { credential_id: F.b64u(c.rawId), spki: F.b64u(c.response.getPublicKey()),
@@ -75,7 +75,8 @@ async function approve(payload) {
   document.getElementById("go").onclick = async () => {
     const res = document.getElementById("res");
     try {
-      const a = await navigator.credentials.get({ publicKey: { challenge: own, rpId: location.hostname, userVerification: "required", timeout: 60000 } });
+      const a = await navigator.credentials.get({ publicKey: { challenge: own, rpId: location.hostname, userVerification: "required", timeout: 60000,
+        allowCredentials: (r.allow || []).map(id => ({ type: "public-key", id: F.unb64u(id) })) } });   // только доверенные ключи
       const out = { credential_id: F.b64u(a.rawId), client_data_json: F.b64u(a.response.clientDataJSON),
                     authenticator_data: F.b64u(a.response.authenticatorData), signature: F.b64u(a.response.signature) };
       res.innerHTML = '<p>Подтверждено. Отправьте блок в чат.</p><pre id="o">' + esc(JSON.stringify(out)) + "</pre>" + copyBtn("o");
